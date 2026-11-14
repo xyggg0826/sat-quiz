@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAT Reading & Writing Practice</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#172033;background:#f4f6fa}
+*{box-sizing:border-box}body{margin:0}.top{background:#142b4a;color:white;padding:24px max(20px,calc((100% - 980px)/2))}
+.top h1{margin:0 0 6px;font-size:25px}.top p{margin:0;color:#d6e2f0}
+main{max-width:980px;margin:24px auto;padding:0 18px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+input,select,button{font:inherit;border:1px solid #cbd5e1;border-radius:9px;padding:10px 12px;background:white;color:#172033}
+input{flex:1;min-width:190px}button{cursor:pointer;font-weight:600}
+button.primary{background:#1d4f91;color:white;border-color:#1d4f91}
+button:hover{filter:brightness(.97)}button:disabled{opacity:.4;cursor:not-allowed}
+.stats{display:flex;justify-content:space-between;gap:12px;color:#526176;font-size:14px;margin:8px 0 14px}
+.card{background:white;border:1px solid #e1e7ef;border-radius:16px;padding:clamp(18px,3vw,30px);box-shadow:0 4px 18px #1b355010}
+.meta{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
+.tag{font-size:12px;background:#edf3fa;color:#24476f;border-radius:20px;padding:5px 9px}
+.question{font-size:17px;line-height:1.7;white-space:pre-wrap;margin:0 0 20px}
+.choices{display:grid;gap:10px}
+.choice{display:flex;gap:12px;align-items:flex-start;text-align:left;width:100%;padding:14px;border:1px solid #d7dee8;border-radius:11px;background:white;line-height:1.55;font-weight:400}
+.letter{flex:0 0 28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#edf1f6;font-weight:700}
+.choice.selected{border:2px solid #4679b8;background:#f1f6fc;padding:13px}
+.choice.correct{border:2px solid #18834b;background:#effaf3;padding:13px}
+.choice.incorrect{border:2px solid #c34a4a;background:#fff3f2;padding:13px}
+.feedback{margin-top:18px;padding:15px;border-radius:10px;background:#f0f7f2;line-height:1.6}
+.feedback.wrong{background:#fff4f2}.feedback h3{margin:0 0 6px;font-size:16px}
+.rationale{margin-top:10px;white-space:pre-wrap}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:20px}
+.footer{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px}
+.small{font-size:13px;color:#637187}.hidden{display:none}
+a{color:#245b96}
+@media(max-width:600px){.stats,.footer{align-items:flex-start;flex-direction:column}.footer button{width:100%}}
+</style>
+</head>
+<body>
+<header class="top"><h1>SAT Reading & Writing — Hard Questions</h1><p>Practice one question at a time. Select an answer to reveal the correct answer and explanation.</p></header>
+<main>
+ <div class="toolbar">
+  <input id="search" placeholder="Search question text, skill, or question ID…">
+  <select id="skill"><option value="">All skills</option></select>
+  <button id="shuffle">Shuffle</button>
+ </div>
+ <div class="stats"><span id="progress">Loading questions…</span><span id="score">Correct: 0 / 0 answered</span></div>
+ <section class="card">
+  <div class="meta" id="meta"></div>
+  <p class="question" id="stem"></p>
+  <div class="choices" id="choices"></div>
+  <div id="feedback" class="feedback hidden" aria-live="polite"></div>
+  <div class="actions">
+   <button id="reveal" class="primary">Reveal answer</button>
+   <button id="reset">Try again</button>
+   <a id="source" target="_blank" rel="noopener">View source PDF page</a>
+  </div>
+ </section>
+ <div class="footer">
+  <span class="small" id="position"></span>
+  <div><button id="prev">← Previous</button> <button id="next" class="primary">Next →</button></div>
+ </div>
+ <p class="small">Your progress is kept only in this browser tab; no account or internet connection is required once the files are saved locally.</p>
+</main>
+<script>
+let allQuestions=[], filtered=[], index=0, selected=null, revealed=false, answered=0, correct=0;
+const $=id=>document.getElementById(id);
+function unique(a){return [...new Set(a)].sort()}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+async function init(){
+ const r=await fetch('./questions.json'); allQuestions=await r.json(); filtered=[...allQuestions];
+ const skills=unique(allQuestions.map(q=>q.skill).filter(Boolean));
+ skills.forEach(s=>{let o=document.createElement('option');o.value=s;o.textContent=s;$('skill').append(o)});
+ // domain/skill/difficulty metadata are preserved when available in the source PDF parser.
+ render();
+}
+function render(){
+ if(!filtered.length){$('stem').textContent='No matching questions. Try a different search or skill.';$('choices').innerHTML='';$('meta').innerHTML='';$('feedback').classList.add('hidden');$('progress').textContent='0 questions';return}
+ index=Math.max(0,Math.min(index,filtered.length-1));let q=filtered[index];
+ $('meta').innerHTML=`<span class="tag">SAT Reading and Writing</span><span class="tag">Question ${q.id}</span><span class="tag">Hard</span>`;
+ $('stem').textContent=q.stem;
+ $('choices').innerHTML='';
+ for(const letter of ['A','B','C','D']){
+  const b=document.createElement('button');b.className='choice';b.type='button';
+  const l=document.createElement('span');l.className='letter';l.textContent=letter;
+  const t=document.createElement('span');t.textContent=q.choices[letter];
+  b.append(l,t);b.onclick=()=>choose(letter);b.id='choice-'+letter;$('choices').append(b);
+ }
+ $('source').href='./source-question-bank.pdf#page='+q.pdf_page;
+ $('feedback').classList.add('hidden');$('feedback').innerHTML='';
+ selected=null;revealed=false;
+ $('progress').textContent=`Question ${index+1} of ${filtered.length} · ${allQuestions.length} in bank`;
+ $('position').textContent=`Question ID: ${q.id} · Original PDF page ${q.pdf_page}`;
+ $('prev').disabled=index===0;$('next').disabled=index===filtered.length-1;
+ $('reveal').disabled=false;
+}
+function choose(letter){if(revealed)return;selected=letter;reveal(true)}
+function reveal(fromChoice=false){
+ if(revealed)return;let q=filtered[index];
+ if(!selected&&!fromChoice){selected='';}
+ revealed=true;
+ if(selected){answered++;if(selected===q.correct)correct++;}
+ for(const letter of ['A','B','C','D']){
+  const b=$('choice-'+letter);
+  if(letter===q.correct)b.classList.add('correct');
+  else if(letter===selected)b.classList.add('incorrect');
+  b.disabled=true;
+ }
+ const f=$('feedback');f.classList.remove('hidden');
+ if(selected===q.correct){f.className='feedback';f.innerHTML='<h3>Correct!</h3>'}
+ else {f.className='feedback wrong';f.innerHTML=`<h3>${selected?'Not quite.':'Correct answer:'} ${q.correct}</h3>`}
+ if(q.rationale){const p=document.createElement('div');p.className='rationale';p.textContent=q.rationale;f.append(p)}
+ $('reveal').disabled=true;$('score').textContent=`Correct: ${correct} / ${answered} answered`;
+}
+function reset(){selected=null;revealed=false;render()}
+function applyFilters(){
+ const term=$('search').value.toLowerCase().trim(), skill=$('skill').value;
+ filtered=allQuestions.filter(q=>(!skill||q.skill===skill)&&(!term||[q.id,q.stem,...Object.values(q.choices),q.rationale].join(' ').toLowerCase().includes(term)));
+ index=0;render();
+}
+$('search').addEventListener('input',applyFilters);$('skill').addEventListener('change',applyFilters);
+$('prev').onclick=()=>{index--;render()};$('next').onclick=()=>{index++;render()};
+$('reveal').onclick=()=>reveal(false);$('reset').onclick=reset;
+$('shuffle').onclick=()=>{filtered=shuffle([...filtered]);index=0;render()};
+init().catch(e=>{$('progress').textContent='Could not load questions.json. Please open this folder using the local server instructions in README.';console.error(e)});
+</script>
+</body></html>
